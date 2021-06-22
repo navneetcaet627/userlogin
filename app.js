@@ -4,7 +4,9 @@ const mongoose = require('mongoose');
 const bodyParser = require('body-parser');
 const ejs = require('ejs');
 const app = express();
-const md5 = require('md5');
+//const md5 = require('md5');
+const bcrypt = require('bcrypt');
+const saltRounds = 10;
 //const encrypt = require('mongoose-encryption');
 app.set('view engine', 'ejs');
 app.use(bodyParser.urlencoded({extended: true}));
@@ -40,20 +42,22 @@ app.route('/register')
     res.render('register');
   })
   .post(function(req,res){
-    let email = req.body.username;
-    let password = md5(req.body.password);
-    console.log(email);
-    console.log(password);
-    let newUser = new User({email:email, password:password});
-    newUser.save(function(err){
-      if(!err){
-        //go to secrets page
-        console.log('Saved User');
-        res.render('secrets');
-      }else{
-        console.log(err);
-      }
+    bcrypt.genSalt(saltRounds, function(err, salt) {
+      bcrypt.hash(req.body.password, salt, function(err, hash) {
+          // Store hash in your password DB.
+          let newUser = new User({email:req.body.username, password:hash});
+          newUser.save(function(err){
+            if(!err){
+              //go to secrets page
+              console.log('Saved User');
+              res.render('secrets');
+            }else{
+              console.log(err);
+            }
+          });
+      });
     });
+
   });
 
 app.route('/login')
@@ -61,16 +65,18 @@ app.route('/login')
     res.render('login');
   })
   .post(function(req,res){
-    let email = req.body.username;
-    let password = md5(req.body.password);
-    User.findOne({email:email}, function(err, doc){
+    User.findOne({email:req.body.username}, function(err, doc){
       if(!err){
         if(doc){
-          if(password === doc.password){
-            res.render('secrets');
-          }else{
-            res.redirect('login');
-          }
+          //use bcrypt.compare
+          bcrypt.compare(req.body.password, doc.password, function(err, result) {
+            console.log(result);
+            if(result){
+              res.render('secrets');
+            }else{
+              res.redirect('login');
+            }
+          });
         }else{
           res.redirect('login');
         }
